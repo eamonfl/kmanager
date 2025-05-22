@@ -122,8 +122,8 @@ def main():
                     kops.version(val)
                     input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
-                case 'q' | 'e' | '6':  # ✅ Works in `case` (but not in `if`/`elif`)
-                    print(f"\n{Fore.RED}Exiting...{Style.RESET_ALL}")
+                case 'q' | 'e' | '6':  
+                    print(f"\n{Fore.RED}Exiting....{Style.RESET_ALL}")
                     break
 
                 case _:  # Default case (invalid input)

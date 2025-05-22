@@ -96,31 +96,35 @@ class Kops:
         if running == availablekernel:
             print(f'No update required, lastest version is already installed({running})')
             return
-        if 'Valid' in vers[-1]:
-            # Now we need to extract the kernel to get from kernel.ubuntu.com
-            print(f'Update required from{running} to {availablekernel}')
-            #
-            # Now install if required
-            prompt = input("Do you want to continue? (yes/no): ")
-            if prompt.lower() in ["yes", "y"]:
-                ## Just extract the 'rc' piece of the kernel to install
-                installs=list(Path("/var/tmp/").glob(f"*{availablekernel.split('-')[1]}*.deb"))
-                if installs:
-                    ## Files are already in /var/tmp, no need to redownload
-                    print(f'Version {availablekernel} has already been downloaded.')
-                else:
-                    #
-                    # Download the .deb files
-                    self.get([availablekernel])
-                    print(f' Version {availablekernel} has been downloaded.')
-                command = ["sudo", "dpkg", "-i","--dry-run"] + installs
-                subprocess.call(command,shell=False)
-            else:
-                print(f'To manually install the new kernel run: \
-                sudo dpkg -i /var/tmp/*{availablekernel.split('-')[1]}*.deb"')
-        else:
+
+        if 'Valid' not in vers[-1]:
             # Version found but invalid
             print(f'No valid downloadable version for {availablekernel}')
+            return
+
+        print(f'Update required from {running} to {availablekernel}')
+        #
+        # Now install if required
+        prompt = input("Do you want to continue? (yes/no): ").strip().lower()
+        if prompt not in {"yes", "y"}:
+            print(f'To manually install the new kernel run:\n'
+                f'sudo dpkg -i /var/tmp/*{availablekernel.split("-")[1]}*.deb')
+            return
+
+        kernel_version_fragment = availablekernel.split('-')[1]
+        installs = list(Path("/var/tmp/").glob(f"*{kernel_version_fragment}*.deb"))
+
+        if installs:
+            print(f'Version {availablekernel} has already been downloaded.')
+        else:
+            self.get([availablekernel])
+            print(f'Version {availablekernel} has been downloaded.')
+            installs = list(Path("/var/tmp/").glob(f"*{kernel_version_fragment}*.deb"))
+
+        command = ["sudo", "dpkg", "-i", "--dry-run"] + installs
+        subprocess.call(command, shell=False)
+        return
+
     #############################
     def get(self,val):
         """ Get the requested kernel files. Replace with the actual website URL """
