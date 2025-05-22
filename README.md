@@ -40,12 +40,12 @@ python kmanager.py
 
    Linux Kernel Management
 
-  1.     Update to the latest RC Kernel
-  2.     List available RC Kernels
-  3.     Get a specific RC Kernel
-  4.     Cleanup. Remove old Kernels
-  5.     Report version information
-  6/q/e. Exit
+  - 1.     Update to the latest RC Kernel
+  - 2.     List available RC Kernels
+  - 3.     Get a specific RC Kernel
+  - 4.     Cleanup. Remove old Kernels
+  - 5.     Report version information
+  - 6/q/e. Exit
 
 3. Command linee
  Linux Kernel Management
