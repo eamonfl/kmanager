@@ -38,29 +38,13 @@ python kmanager.py
 
 2. Follow the on-screen instructions:
 
-   Linux Kernel Management
+![kmanager screenshot](https://github.com/user-attachments/assets/3f713dbc-cfd9-4426-ad75-665ee0f54189)
 
-  - 1.     Update to the latest RC Kernel
-  - 2.     List available RC Kernels
-  - 3.     Get a specific RC Kernel
-  - 4.     Cleanup. Remove old Kernels
-  - 5.     Report version information
-  - 6/q/e. Exit
-
-3. Command linee
+3. Command line
  Linux Kernel Management
 
-options:
-  -h, --help            show this help message and exit
-  -u, --update           Update the Kernel
-  -g GET, --get GET      Get a specific Kernel
-  -c, --clean            Clean old Kernels
-  -v, --version          Report Version
+![kmanager2 screenshot](https://github.com/user-attachments/assets/419968dc-9f7b-4899-b7c1-2a4c824fd6a5)
 
-list options:
-  -l, --list             List available Kernels
-  -n NUMBER, --number NUMBER
-                         Number of Kernels to List (only with -l)
 ## Tested on
 
 Ubuntu 24.10
@@ -71,4 +55,3 @@ Contributions are welcome! Feel free to open issues or submit pull requests to e
 
 ## License
 This project is licensed under the MIT License. Feel free to use, modify, and distribute it.
-
