@@ -41,7 +41,7 @@ class Kops:
         """
         self.platform=platform.release() # Stores the current kernel release (e.g., '5.15.0-78-generic')
         self.kernel_url='https://kernel.ubuntu.com/~kernel-ppa/mainline/' # Base URL for Ubuntu mainline kernels
-        self.kernel_arch=platform.processor() # Stores the system architecture (e.g., 'x86_64')
+        self.kernel_arch=platform.processor() # Stores system architecture (e.g., 'x86_64', 'aarch64'). Note: PPA interactions (get, list status) currently use 'amd64' in URLs.
         self.system=platform.system() # Stores the OS type (e.g., 'Linux')
         self.distro_name=distro.name() # Stores the distribution name (e.g., 'Ubuntu')
         self.distro_version=distro.version() # Stores the distribution version (e.g., '22.04')
@@ -62,7 +62,9 @@ class Kops:
         print('Cleaning Up')
         sudo='sudo'
         tool='/usr/local/bin/kclean.sh'
-        subprocess.call([sudo,tool],shell=False)
+        return_code = subprocess.call([sudo,tool],shell=False)
+        if return_code != 0:
+            print(f"Error: The kernel cleanup script (kclean.sh) failed with exit code {return_code}.")
 
     #####################
     def version(self,val):
@@ -90,23 +92,21 @@ class Kops:
         """
         hrefs=[]
         try:
-            response = requests.get(self.kernel_url,timeout=10)
-            if response.status_code == 200:
-                # Parse the HTML content of the kernel PPA page using BeautifulSoup.
-                # 'html.parser' is the built-in Python HTML parser.
-                soup = BeautifulSoup(response.text, 'html.parser')
-                # Find all '<a>' (anchor) tags, which typically contain links.
-                links = soup.find_all('a')
-                # Extract the 'href' attribute from each link.
-                # These hrefs usually represent directories for kernel versions.
-                for link in links:
-                    # Filter for hrefs that likely represent kernel version directories.
-                    # Kernel version directories on the PPA typically start with 'v'.
-                    # This also helps ignore other links like 'Parent Directory'.
-                    if 'v' in link.get('href'):
-                        hrefs.append(link.get('href'))
-            else:
-                print("Failed to fetch the page. Status code:", response.status_code)
+            response = requests.get(self.kernel_url, timeout=10)
+            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+            # Parse the HTML content of the kernel PPA page using BeautifulSoup.
+            # 'html.parser' is the built-in Python HTML parser.
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Find all '<a>' (anchor) tags, which typically contain links.
+            links = soup.find_all('a')
+            # Extract the 'href' attribute from each link.
+            # These hrefs usually represent directories for kernel versions.
+            for link in links:
+                # Filter for hrefs that likely represent kernel version directories.
+                # Kernel version directories on the PPA typically start with 'v'.
+                # This also helps ignore other links like 'Parent Directory'.
+                if 'v' in link.get('href'):
+                    hrefs.append(link.get('href'))
             # Extract major.minor-rcN from the currently running kernel string for comparison.
             plat=__extract_version_info__(self.platform)
             # Iterate through the N most recent kernel versions found (controlled by self.listnumber).
@@ -123,12 +123,18 @@ class Kops:
                 else:
                     # For other kernels, check their build status for 'amd64' architecture.
                     # Construct the URL to the 'status' file for this kernel version.
-                    statusurl=self.kernel_url + href + 'amd64/status'
+                    statusurl=self.kernel_url + href + 'amd64/status' # URL to check status for amd64 architecture.
                     status=self.__get_kernel_status__(statusurl)
                 print(f'{kernel_version_str:7} \t{status}')
 
-        except requests.RequestException as e:
-            print("Error:", e)
+        except requests.exceptions.ConnectionError as e:
+            print(f"Error: Connection failed for {self.kernel_url}. Please check your network connection. Details: {e}")
+        except requests.exceptions.Timeout as e:
+            print(f"Error: Request timed out for {self.kernel_url}. The server might be too slow. Details: {e}")
+        except requests.exceptions.HTTPError as e:
+            print(f"Error: HTTP error occurred for {self.kernel_url}. Status code: {e.response.status_code}. Details: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"Error: An unexpected error occurred while fetching {self.kernel_url}. Details: {e}")
     #####################
     def update(self,val):
         """
@@ -203,7 +209,9 @@ class Kops:
         # Prepare and execute the dpkg command for a dry run to simulate installation.
         # This shows what would happen without actually installing.
         command = ["sudo", "dpkg", "-i", "--dry-run"] + installs
-        subprocess.call(command, shell=False)
+        return_code = subprocess.call(command, shell=False)
+        if return_code != 0:
+            print(f"Error: 'dpkg --dry-run' command failed with exit code {return_code}. The kernel installation was not simulated successfully.")
         return
 
     #############################
@@ -223,7 +231,7 @@ class Kops:
         # Construct the specific URL for the kernel version and architecture.
         # val[0] contains the kernel version string like "6.5.3".
         # Example URL: https://kernel.ubuntu.com/~kernel-ppa/mainline/v6.5.3/amd64/
-        url = f'https://kernel.ubuntu.com/~kernel-ppa/mainline/v{val[0]}/amd64/'
+        url = f'https://kernel.ubuntu.com/~kernel-ppa/mainline/v{val[0]}/amd64/' # URL for amd64 architecture kernels.
         extension = '.deb'  # We are interested in .deb packages.
         output_path = '/var/tmp' # Standard temporary directory for downloads.
 
@@ -248,15 +256,25 @@ class Kops:
         """
         try:
             # Send a GET request to the kernel status URL.
-            response = requests.get(url,timeout=10)
-            # Assume valid by default.
-            status='(Valid)'
-            # A 404 Not Found status specifically means the 'status' file (and thus likely a valid build for this arch) doesn't exist.
-            if response.status_code == 404:
-                status='(Invalid)'
-            return status
-        except Exception as e:
-            print(f"An error occurred: {e}")
+            response = requests.get(url, timeout=10)
+            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+            # If request is successful (e.g. status 200), it's a valid build.
+            return '(Valid)'
+        except requests.exceptions.HTTPError as e:
+            # Specifically handle 404 Not Found as an 'Invalid' build status.
+            if e.response.status_code == 404:
+                return '(Invalid)'
+            # For other HTTP errors, print a message and return Invalid.
+            print(f"Error: HTTP error occurred while checking status for {url}. Status code: {e.response.status_code}. Details: {e}")
+            return '(Invalid)'
+        except requests.exceptions.ConnectionError as e:
+            print(f"Error: Connection failed while checking status for {url}. Please check your network connection. Details: {e}")
+            return '(Invalid)'
+        except requests.exceptions.Timeout as e:
+            print(f"Error: Request timed out while checking status for {url}. The server might be too slow. Details: {e}")
+            return '(Invalid)'
+        except requests.exceptions.RequestException as e:
+            print(f"Error: An unexpected error occurred while checking status for {url}. Details: {e}")
             return '(Invalid)'
     ##############################
     def __download_files_with_ext__(self,url, extension, output_path):
@@ -273,10 +291,9 @@ class Kops:
         # exist_ok=True means it won't raise an error if the directory already exists.
         os.makedirs(output_path, exist_ok=True)
 
-        response = requests.get(url,timeout=10)
-        if response.status_code != 200:
-            print(f'\n****Failed to find kernel branch:  {url}****\n')
-        else:
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
             # Parse the HTML content of the specific kernel version page.
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -300,18 +317,33 @@ class Kops:
                 # Download the file using streaming to handle potentially large files efficiently.
                 # stream=True defers downloading the response body until content is accessed.
                 try:
-                    response = requests.get(file_url, stream=True,timeout=10)
-                    if response.status_code == 200:
-                        # Open the local file in write-binary mode.
-                        with open(file_path, 'wb') as f:
-                            # Iterate over the response data in chunks of 1024 bytes.
-                            for chunk in response.iter_content(chunk_size=1024):
-                                if chunk:  # Filter out keep-alive new chunks (which are empty).
-                                    f.write(chunk) # Write the current chunk to the file.
-                    else:
-                        print(f'Failed to download {filename}, error code: {response.status_code}')
-                except Exception as err:
-                    print(f'Error downloading {filename}: {err}')
+                    response_file = requests.get(file_url, stream=True, timeout=10)
+                    response_file.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                    # Open the local file in write-binary mode.
+                    with open(file_path, 'wb') as f:
+                        # Iterate over the response data in chunks of 1024 bytes.
+                        for chunk in response_file.iter_content(chunk_size=1024):
+                            if chunk:  # Filter out keep-alive new chunks (which are empty).
+                                f.write(chunk) # Write the current chunk to the file.
+                except requests.exceptions.ConnectionError as e_file:
+                    print(f"Error: Connection failed for {file_url} while downloading. Please check your network connection. Details: {e_file}")
+                except requests.exceptions.Timeout as e_file:
+                    print(f"Error: Request timed out for {file_url} while downloading. The server might be too slow. Details: {e_file}")
+                except requests.exceptions.HTTPError as e_file:
+                    print(f"Error: HTTP error occurred for {file_url} while downloading. Status code: {e_file.response.status_code}. Details: {e_file}")
+                except requests.exceptions.RequestException as e_file:
+                    print(f"Error: An unexpected error occurred while downloading {file_url}. Details: {e_file}")
+        except requests.exceptions.ConnectionError as e:
+            print(f"Error: Connection failed for {url} (kernel branch page). Please check your network connection. Details: {e}")
+        except requests.exceptions.Timeout as e:
+            print(f"Error: Request timed out for {url} (kernel branch page). The server might be too slow. Details: {e}")
+        except requests.exceptions.HTTPError as e:
+            # Handle case where the kernel branch URL itself gives an HTTP error (e.g., 404 for a non-existent version)
+            print(f"Error: HTTP error occurred for {url} (kernel branch page). Status code: {e.response.status_code}. Details: {e}")
+            print(f'\n****Failed to find kernel branch:  {url}****\n') # Keep original specific error message
+        except requests.exceptions.RequestException as e:
+            print(f"Error: An unexpected error occurred while fetching {url} (kernel branch page). Details: {e}")
+
 def __extract_version_info__(version_string):
     """
     Extracts the major.minor version and release candidate (RC) information

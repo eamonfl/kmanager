@@ -145,14 +145,15 @@ def main():
             match choice:
                 case '1':
                     print(f"\n{Fore.CYAN}Updating to the latest RC Kernel...{Style.RESET_ALL}")
-                    kops.update(val) # val here is from the CLI loop, might be uninitialized if no CLI args. This could be a bug.
-                                     # For menu actions, kops methods should ideally not rely on 'val' from CLI context.
+                    # Pass None as 'val' is not relevant for menu-driven actions.
+                    kops.update(None)
                     # Pauses execution until the user presses Enter, allowing them to read the output.
                     input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
                 case '2':
                     print(f"\n{Fore.CYAN}Listing available RC Kernels...{Style.RESET_ALL}")
-                    kops.list(val) # Same potential issue with 'val' as above.
+                    # Pass None as 'val' is not relevant for menu-driven actions.
+                    kops.list(None)
                     input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
                 case '3':
@@ -163,12 +164,14 @@ def main():
 
                 case '4':
                     print(f"\n{Fore.CYAN}Cleaning up old Kernels...{Style.RESET_ALL}")
-                    kops.clean(val) # Same potential issue with 'val' as above.
+                    # Pass None as 'val' is not relevant for menu-driven actions.
+                    kops.clean(None)
                     input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
                 case '5':
                     print(f"\n{Fore.CYAN}Displaying version information...{Style.RESET_ALL}")
-                    kops.version(val) # Same potential issue with 'val' as above.
+                    # Pass None as 'val' is not relevant for menu-driven actions.
+                    kops.version(None)
                     input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
                 case 'q' | 'e' | '6':  # Handles exit conditions
